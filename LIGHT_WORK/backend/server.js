@@ -52,28 +52,36 @@ io.on("connection", (socket) => {
   socket.join(`user:${socket.userId}`);
   io.emit("presence", { userId: socket.userId, online: true });
 
-  socket.on("chat:join", ({ conversationId }) => socket.join(`conv:${conversationId}`));
-
-  socket.on("chat:typing", ({ conversationId, isTyping }) => {
-    socket.to(`conv:${conversationId}`).emit("chat:typing", { userId: socket.userId, isTyping });
+  socket.on("chat:join", ({ conversationId } = {}) => {
+    if (conversationId) socket.join(`conv:${conversationId}`);
   });
 
-  socket.on("chat:message", ({ conversationId, type, content, detectionKind, detectionConfidence }) => {
-    // Reject empty or whitespace‑only messages
-    if (!content || !content.trim()) {
+  socket.on("chat:typing", ({ conversationId, isTyping } = {}) => {
+    if (conversationId) socket.to(`conv:${conversationId}`).emit("chat:typing", { userId: socket.userId, isTyping });
+  });
+
+  socket.on("chat:message", ({ conversationId, type, content, detectionKind, detectionConfidence } = {}) => {
+    // Reject missing conversationId, empty, or whitespace‑only messages
+    if (!conversationId || !content || !content.trim()) {
       socket.emit("error", { error: "Message cannot be empty" });
       return;
     }
-    const id = nanoid();
-    db.prepare(
-      `INSERT INTO messages (id, conversation_id, sender_id, type, content, detection_kind, detection_confidence) VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, conversationId, socket.userId, type, content, detectionKind || null, detectionConfidence ?? null);
-    const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(id);
-    io.to(`conv:${conversationId}`).emit("chat:message", message);
+    try {
+      const id = nanoid();
+      db.prepare(
+        `INSERT INTO messages (id, conversation_id, sender_id, type, content, detection_kind, detection_confidence) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(id, conversationId, socket.userId, type || "text", content, detectionKind || null, detectionConfidence ?? null);
+      const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(id);
+      io.to(`conv:${conversationId}`).emit("chat:message", message);
+    } catch (err) {
+      console.error("chat:message error:", err.message);
+      socket.emit("error", { error: "Failed to send message" });
+    }
   });
 
   // ---- WebRTC signaling for voice/video calls ----
-  socket.on("call:invite", ({ toUserId, conversationId, callType }) => {
+  socket.on("call:invite", ({ toUserId, conversationId, callType } = {}) => {
+    if (!toUserId) return;
     const target = onlineUsers.get(toUserId);
     if (target) {
       io.to(target).emit("call:invite", { fromUserId: socket.userId, conversationId, callType });
@@ -82,22 +90,26 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("call:accept", ({ toUserId }) => {
+  socket.on("call:accept", ({ toUserId } = {}) => {
+    if (!toUserId) return;
     const target = onlineUsers.get(toUserId);
     if (target) io.to(target).emit("call:accept", { fromUserId: socket.userId });
   });
 
-  socket.on("call:reject", ({ toUserId }) => {
+  socket.on("call:reject", ({ toUserId } = {}) => {
+    if (!toUserId) return;
     const target = onlineUsers.get(toUserId);
     if (target) io.to(target).emit("call:reject", { fromUserId: socket.userId });
   });
 
-  socket.on("call:signal", ({ toUserId, signal }) => {
+  socket.on("call:signal", ({ toUserId, signal } = {}) => {
+    if (!toUserId) return;
     const target = onlineUsers.get(toUserId);
     if (target) io.to(target).emit("call:signal", { fromUserId: socket.userId, signal });
   });
 
-  socket.on("call:end", ({ toUserId }) => {
+  socket.on("call:end", ({ toUserId } = {}) => {
+    if (!toUserId) return;
     const target = onlineUsers.get(toUserId);
     if (target) io.to(target).emit("call:end", { fromUserId: socket.userId });
   });

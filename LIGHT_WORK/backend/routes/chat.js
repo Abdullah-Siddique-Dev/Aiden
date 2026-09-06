@@ -50,6 +50,12 @@ router.post("/conversations/start", authMiddleware, (req, res) => {
 });
 
 router.get("/conversations/:id/messages", authMiddleware, (req, res) => {
+  const conversation = db.prepare("SELECT * FROM conversations WHERE id = ?").get(req.params.id);
+  if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+  if (conversation.user_a !== req.userId && conversation.user_b !== req.userId) {
+    return res.status(403).json({ error: "Not a participant in this conversation" });
+  }
+
   const rows = db
     .prepare(`SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC`)
     .all(req.params.id);
