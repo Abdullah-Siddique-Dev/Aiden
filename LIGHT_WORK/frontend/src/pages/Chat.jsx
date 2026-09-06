@@ -53,21 +53,24 @@ export default function Chat() {
   useEffect(() => {
     const socket = getSocket(token);
     socketRef.current = socket;
-    socket.on("chat:message", (msg) => {
+    const handleMessage = (msg) => {
       setMessages((m) => (msg.conversation_id === activeConv?.id ? [...m, msg] : m));
       loadConversations();
-    });
-    socket.on("chat:typing", ({ userId, isTyping }) => {
+    };
+    const handleTyping = ({ userId, isTyping }) => {
       if (userId !== user.id) setTypingUser(isTyping ? userId : null);
-    });
+    };
+    socket.on("chat:message", handleMessage);
+    socket.on("chat:typing", handleTyping);
     loadConversations();
     preloadDetectors();
     return () => {
-      socket.off("chat:message");
-      socket.off("chat:typing");
+      socket.off("chat:message", handleMessage);
+      socket.off("chat:typing", handleTyping);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConv?.id]);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

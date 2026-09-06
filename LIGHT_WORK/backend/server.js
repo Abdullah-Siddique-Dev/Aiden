@@ -59,6 +59,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("chat:message", ({ conversationId, type, content, detectionKind, detectionConfidence }) => {
+    // Reject empty or whitespace‑only messages
+    if (!content || !content.trim()) {
+      socket.emit("error", { error: "Message cannot be empty" });
+      return;
+    }
     const id = nanoid();
     db.prepare(
       `INSERT INTO messages (id, conversation_id, sender_id, type, content, detection_kind, detection_confidence) VALUES (?, ?, ?, ?, ?, ?, ?)`
