@@ -9,6 +9,7 @@ import { searchUsers } from "../lib/api";
 import Calls from "./Calls";
 import ChatDetectModal from "../components/ChatDetectModal";
 import ChatRecordBar from "../components/ChatRecordBar";
+import AidenAssistantChat from "../components/AidenAssistantChat";
 
 const ASSISTANT_ID = "aiden-assistant"; // synthetic conversation id, never touches the messages/conversations tables
 
@@ -37,10 +38,6 @@ export default function Chat() {
   const scrollRef = useRef(null);
 
   const isAssistant = activeConv?.id === ASSISTANT_ID;
-  const [assistantMessages, setAssistantMessages] = useState([]);
-  const [assistantBusy, setAssistantBusy] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
 
   const [detectOpen, setDetectOpen] = useState(false);
 
@@ -72,7 +69,7 @@ export default function Chat() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, assistantMessages]);
+  }, [messages]);
 
   useEffect(() => {
     if (searchParams.get("assistant") === "1") openAssistant();
@@ -124,11 +121,6 @@ export default function Chat() {
 
   function sendText() {
     if (!text.trim() || !activeConv) return;
-    if (isAssistant) {
-      sendToAssistant(text.trim());
-      setText("");
-      return;
-    }
     socketRef.current.emit("chat:message", { conversationId: activeConv.id, type: "text", content: text.trim() });
     setText("");
   }
@@ -150,55 +142,6 @@ export default function Chat() {
     const res = await fetch("/api/chat/upload", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
     const data = await res.json();
     socketRef.current.emit("chat:message", { conversationId: activeConv.id, type, content: data.url });
-  }
-
-  async function sendToAssistant(message) {
-    setAssistantMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", text: message }]);
-    setAssistantBusy(true);
-    try {
-      const res = await fetch("/api/agent/respond", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message, language }),
-      });
-      const data = await res.json();
-      const reply = data.reply || (language === "ur" ? "معذرت، جواب نہیں مل سکا۔" : "Sorry, I couldn't get a reply.");
-      setAssistantMessages((m) => [...m, { id: `local-${Date.now()}-r`, role: "assistant", text: reply }]);
-      speak(reply);
-    } catch {
-      const fallback = language === "ur" ? "رابطہ نہیں ہو سکا۔" : "Couldn't reach the assistant.";
-      setAssistantMessages((m) => [...m, { id: `local-${Date.now()}-r`, role: "assistant", text: fallback }]);
-    } finally {
-      setAssistantBusy(false);
-    }
-  }
-
-  function startListening() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      setAssistantMessages((m) => [
-        ...m,
-        { id: `local-${Date.now()}-e`, role: "assistant", text: language === "ur" ? "یہ براؤزر صوتی ان پٹ سپورٹ نہیں کرتا۔" : "This browser doesn't support voice input." },
-      ]);
-      return;
-    }
-    const recognition = new SR();
-    recognition.lang = language === "ur" ? "ur-PK" : "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      if (transcript) sendToAssistant(transcript);
-    };
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
-  }
-  function stopListening() {
-    recognitionRef.current?.stop();
-    setListening(false);
   }
 
   async function openRecorder(kind) {
@@ -298,107 +241,88 @@ export default function Chat() {
         </ul>
       </aside>
 
-      <section className="flex-1 flex flex-col min-w-0">
-        {activeConv ? (
-          <>
-            <header className="border-b hairline px-5 py-3 bg-white font-medium flex items-center gap-2">
-              {isAssistant && <span>🤖</span>}
-              {activeConv.with?.name}
-              {isAssistant && (
-                <span className="text-xs font-normal text-ink/40 ml-2">
-                  {language === "ur" ? "(صرف متن اور آواز — یہ اصل چیٹ نہیں ہے)" : "(text + voice only — not a real conversation)"}
-                </span>
-              )}
-            </header>
+      {isAssistant ? (
+        <AidenAssistantChat
+          token={token}
+          language={language}
+          speak={speak}
+          t={t}
+        />
+      ) : (
+        <section className="flex-1 flex flex-col min-w-0">
+          {activeConv ? (
+            <>
+              <header className="border-b hairline px-5 py-3 bg-white font-medium flex items-center gap-2">
+                {activeConv.with?.name}
+              </header>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
-              {!isAssistant && messages.map((m) => (
-                <div key={m.id} className={`flex ${m.sender_id === user.id ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[70%] rounded-card px-3 py-2 text-sm ${m.sender_id === user.id ? "bg-teal text-white" : "bg-white border hairline"}`}>
-                    {m.type === "text" && m.content}
-                    {m.type === "image" && <img src={m.content} alt="shared" className="rounded max-w-full" />}
-                    {m.type === "voice" && <audio controls src={m.content} className="max-w-full" />}
-                    {m.type === "video" && <video controls src={m.content} className="max-w-full rounded" />}
-                    {m.type === "detection" && (
-                      <div>
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-marigold/30 mb-1">
-                          {DETECTION_BADGE[m.detection_kind]?.icon} {language === "ur" ? DETECTION_BADGE[m.detection_kind]?.ur : DETECTION_BADGE[m.detection_kind]?.en}
-                        </span>
-                        <p className="font-medium">{m.content}</p>
-                        {m.detection_confidence != null && (
-                          <p className="text-xs opacity-60">{Math.round(m.detection_confidence * 100)}%</p>
-                        )}
-                      </div>
-                    )}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+                {messages.map((m) => (
+                  <div key={m.id} className={`flex ${m.sender_id === user.id ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[70%] rounded-card px-3 py-2 text-sm ${m.sender_id === user.id ? "bg-teal text-white" : "bg-white border hairline"}`}>
+                      {m.type === "text" && m.content}
+                      {m.type === "image" && <img src={m.content} alt="shared" className="rounded max-w-full" />}
+                      {m.type === "voice" && <audio controls src={m.content} className="max-w-full" />}
+                      {m.type === "video" && <video controls src={m.content} className="max-w-full rounded" />}
+                      {m.type === "detection" && (
+                        <div>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-marigold/30 mb-1">
+                            {DETECTION_BADGE[m.detection_kind]?.icon} {language === "ur" ? DETECTION_BADGE[m.detection_kind]?.ur : DETECTION_BADGE[m.detection_kind]?.en}
+                          </span>
+                          <p className="font-medium">{m.content}</p>
+                          {m.detection_confidence != null && (
+                            <p className="text-xs opacity-60">{Math.round(m.detection_confidence * 100)}%</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+                {typingUser && <p className="text-xs text-ink/40">{activeConv.with?.name} is typing…</p>}
+              </div>
 
-              {isAssistant && assistantMessages.map((m) => (
-                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[70%] rounded-card px-3 py-2 text-sm ${m.role === "user" ? "bg-teal text-white" : "bg-marigold/20 border hairline"}`}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-              {isAssistant && assistantBusy && <p className="text-xs text-ink/40">AIDEN {language === "ur" ? "سوچ رہا ہے…" : "is thinking…"}</p>}
-              {!isAssistant && typingUser && <p className="text-xs text-ink/40">{activeConv.with?.name} is typing…</p>}
-            </div>
-
-            <ChatRecordBar
-              mode={recordMode}
-              recorder={activeRecorder}
-              previewStream={videoRec.previewStream}
-              language={language}
-              onCancel={cancelRecording}
-              onStop={stopAndSend}
-            />
-
-            <div className="border-t hairline bg-white px-5 py-3 flex items-center gap-2">
-              {!isAssistant && (
-                <>
-                  <button onClick={() => fileInputRef.current?.click()} title={language === "ur" ? "فائل بھیجیں" : "Attach file"} className="w-9 h-9 rounded-full bg-teal-light">📎</button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    hidden
-                    accept="image/*,video/*,audio/*"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      const type = f.type.startsWith("video") ? "video" : f.type.startsWith("audio") ? "voice" : "image";
-                      uploadFile(f, type);
-                      e.target.value = "";
-                    }}
-                  />
-                  <button onClick={() => openRecorder("voice")} title={language === "ur" ? "آواز ریکارڈ کریں" : "Record voice note"} className="w-9 h-9 rounded-full bg-teal-light">🎙️</button>
-                  <button onClick={() => openRecorder("video")} title={language === "ur" ? "ویڈیو ریکارڈ کریں" : "Record video clip"} className="w-9 h-9 rounded-full bg-teal-light">🎥</button>
-                  <button onClick={() => setDetectOpen(true)} title={language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"} className="w-9 h-9 rounded-full bg-marigold">🔍</button>
-                </>
-              )}
-              {isAssistant && (
-                <button
-                  onClick={listening ? stopListening : startListening}
-                  title={language === "ur" ? "بولیں" : "Speak"}
-                  className={`w-9 h-9 rounded-full ${listening ? "bg-red-500 text-white animate-pulse" : "bg-teal-light"}`}
-                >
-                  🎙️
-                </button>
-              )}
-              <input
-                value={text}
-                onChange={(e) => onTyping(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendText()}
-                placeholder={t("type_message")}
-                className={`flex-1 border hairline rounded-card px-3 py-2 text-sm ${language === "ur" ? "font-urdu text-right" : ""}`}
+              <ChatRecordBar
+                mode={recordMode}
+                recorder={activeRecorder}
+                previewStream={videoRec.previewStream}
+                language={language}
+                onCancel={cancelRecording}
+                onStop={stopAndSend}
               />
-              <button onClick={sendText} className="bg-marigold text-ink rounded-card px-4 py-2 font-medium text-sm">{t("send")}</button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-ink/40">{t("no_conversations")}</div>
-        )}
-      </section>
+
+              <div className="border-t hairline bg-white px-5 py-3 flex items-center gap-2">
+                <button onClick={() => fileInputRef.current?.click()} title={language === "ur" ? "فائل بھیجیں" : "Attach file"} className="w-9 h-9 rounded-full bg-teal-light">📎</button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  accept="image/*,video/*,audio/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const type = f.type.startsWith("video") ? "video" : f.type.startsWith("audio") ? "voice" : "image";
+                    uploadFile(f, type);
+                    e.target.value = "";
+                  }}
+                />
+                <button onClick={() => openRecorder("voice")} title={language === "ur" ? "آواز ریکارڈ کریں" : "Record voice note"} className="w-9 h-9 rounded-full bg-teal-light">🎙️</button>
+                <button onClick={() => openRecorder("video")} title={language === "ur" ? "ویڈیو ریکارڈ کریں" : "Record video clip"} className="w-9 h-9 rounded-full bg-teal-light">🎥</button>
+                <button onClick={() => setDetectOpen(true)} title={language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"} className="w-9 h-9 rounded-full bg-marigold">🔍</button>
+                <input
+                  value={text}
+                  onChange={(e) => onTyping(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendText()}
+                  placeholder={t("type_message")}
+                  className={`flex-1 border hairline rounded-card px-3 py-2 text-sm ${language === "ur" ? "font-urdu text-right" : ""}`}
+                />
+                <button onClick={sendText} className="bg-marigold text-ink rounded-card px-4 py-2 font-medium text-sm">{t("send")}</button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-ink/40">{t("no_conversations")}</div>
+          )}
+        </section>
+      )}
       </div>
       )}
 
