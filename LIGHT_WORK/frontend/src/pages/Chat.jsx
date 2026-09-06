@@ -8,6 +8,7 @@ import { preloadDetectors } from "../lib/detectFromCamera";
 import { searchUsers } from "../lib/api";
 import Calls from "./Calls";
 import ChatDetectModal from "../components/ChatDetectModal";
+import ChatRecordBar from "../components/ChatRecordBar";
 
 const ASSISTANT_ID = "aiden-assistant"; // synthetic conversation id, never touches the messages/conversations tables
 
@@ -46,7 +47,6 @@ export default function Chat() {
   const [recordMode, setRecordMode] = useState(null);
   const voiceRec = useRecorder("voice", language);
   const videoRec = useRecorder("video", language);
-  const recordVideoPreviewRef = useRef(null);
 
   useEffect(() => {
     const socket = getSocket(token);
@@ -73,12 +73,6 @@ export default function Chat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, assistantMessages]);
-
-  useEffect(() => {
-    if (recordVideoPreviewRef.current && videoRec.previewStream) {
-      recordVideoPreviewRef.current.srcObject = videoRec.previewStream;
-    }
-  }, [videoRec.previewStream]);
 
   useEffect(() => {
     if (searchParams.get("assistant") === "1") openAssistant();
@@ -351,26 +345,14 @@ export default function Chat() {
               {!isAssistant && typingUser && <p className="text-xs text-ink/40">{activeConv.with?.name} is typing…</p>}
             </div>
 
-            {recordMode && (
-              <div className="border-t hairline bg-ink text-white px-5 py-3 flex items-center gap-3">
-                {recordMode === "video" && (
-                  <video ref={recordVideoPreviewRef} autoPlay muted playsInline className="w-16 h-12 rounded object-cover bg-black" />
-                )}
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-sm font-mono">
-                  {String(Math.floor(activeRecorder.seconds / 60)).padStart(2, "0")}:{String(activeRecorder.seconds % 60).padStart(2, "0")}
-                  {activeRecorder.maxSeconds ? ` / 01:00` : ""}
-                </span>
-                {activeRecorder.error && <span className="text-xs text-red-300">{activeRecorder.error}</span>}
-                <div className="flex-1" />
-                <button onClick={cancelRecording} className="text-sm px-3 py-1.5 rounded-card bg-white/10">
-                  {language === "ur" ? "منسوخ" : "Cancel"}
-                </button>
-                <button onClick={stopAndSend} className="text-sm px-3 py-1.5 rounded-card bg-teal font-medium">
-                  {language === "ur" ? "روکیں اور بھیجیں" : "Stop & Send"}
-                </button>
-              </div>
-            )}
+            <ChatRecordBar
+              mode={recordMode}
+              recorder={activeRecorder}
+              previewStream={videoRec.previewStream}
+              language={language}
+              onCancel={cancelRecording}
+              onStop={stopAndSend}
+            />
 
             <div className="border-t hairline bg-white px-5 py-3 flex items-center gap-2">
               {!isAssistant && (
