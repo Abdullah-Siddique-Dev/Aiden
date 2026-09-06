@@ -5,7 +5,11 @@ import { nanoid } from "nanoid";
 import { db } from "../db.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "aiden-dev-secret-change-me";
+if (!process.env.JWT_SECRET) {
+  console.error("Fatal: JWT_SECRET environment variable is not set.");
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 function signToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });

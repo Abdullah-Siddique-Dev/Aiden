@@ -1,0 +1,12 @@
+# Git ignore for AIDEN project
+node_modules/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+uploads/
+__pycache__/
+*.pyc
+build/
