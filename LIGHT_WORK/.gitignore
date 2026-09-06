@@ -1,0 +1,14 @@
+node_modules/
+dist/
+backend/aiden.db
+backend/aiden.db-*
+backend/uploads/voice/*
+backend/uploads/image/*
+backend/uploads/video/*
+!backend/uploads/voice/.gitkeep
+!backend/uploads/image/.gitkeep
+!backend/uploads/video/.gitkeep
+.env
+*.log
+.DS_Store
+Thumbs.db

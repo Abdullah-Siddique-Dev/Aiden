@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-multipart
+ultralytics
+easyocr
+gTTS
+opencv-python-headless
+scikit-learn
+joblib
+torch
+torchvision
+numpy

@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-scale: 1;
+}
+
+html {
+  font-size: calc(16px * var(--font-scale));
+}
+
+body {
+  @apply bg-paper text-ink font-sans;
+}
+
+[dir="rtl"] body,
+.urdu {
+  font-family: "Noto Nastaliq Urdu", serif;
+}
+
+.high-contrast {
+  --tw-bg-opacity: 1;
+  background: #000 !important;
+  color: #fff !important;
+}
+.high-contrast * {
+  background-color: #000 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+}
+.high-contrast a,
+.high-contrast button {
+  outline: 1px solid #fff;
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 3px solid #E1A73E;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+.hairline { border-color: rgba(22,36,31,0.12); }
