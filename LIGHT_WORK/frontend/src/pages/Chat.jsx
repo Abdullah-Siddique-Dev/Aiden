@@ -3,10 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { getSocket } from "../lib/socket";
-import { useCamera } from "../lib/useCamera";
 import { useRecorder } from "../lib/useRecorder";
-import { autoDetect, preloadDetectors } from "../lib/detectFromCamera";
+import { preloadDetectors } from "../lib/detectFromCamera";
+import { searchUsers } from "../lib/api";
 import Calls from "./Calls";
+import ChatDetectModal from "../components/ChatDetectModal";
 
 const ASSISTANT_ID = "aiden-assistant"; // synthetic conversation id, never touches the messages/conversations tables
 
@@ -41,9 +42,6 @@ export default function Chat() {
   const recognitionRef = useRef(null);
 
   const [detectOpen, setDetectOpen] = useState(false);
-  const [detectStatus, setDetectStatus] = useState("");
-  const [detectBusy, setDetectBusy] = useState(false);
-  const detectCam = useCamera(language);
 
   const [recordMode, setRecordMode] = useState(null);
   const voiceRec = useRecorder("voice", language);
@@ -97,9 +95,8 @@ export default function Chat() {
   async function search(q) {
     setQuery(q);
     if (!q.trim()) return setResults([]);
-    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setResults(data.users || []);
+    const users = await searchUsers(q, token);
+    setResults(users);
   }
 
   async function openConversationWith(otherUser) {
@@ -208,47 +205,6 @@ export default function Chat() {
   function stopListening() {
     recognitionRef.current?.stop();
     setListening(false);
-  }
-
-  async function openDetectModal() {
-    setDetectOpen(true);
-    setDetectStatus("");
-    await detectCam.start("environment");
-  }
-
-  function closeDetectModal() {
-    detectCam.stop();
-    setDetectOpen(false);
-    setDetectStatus("");
-  }
-
-  async function runDetectAndSend() {
-    if (!detectCam.active) return;
-    setDetectBusy(true);
-    setDetectStatus(language === "ur" ? "پہچانا جا رہا ہے…" : "Detecting…");
-    try {
-      const result = await autoDetect(detectCam.videoRef.current, language);
-      if (!result) {
-        setDetectStatus(language === "ur" ? "کچھ واضح نہیں ملا، دوبارہ کوشش کریں۔" : "Nothing confident detected — try again.");
-        return;
-      }
-      const sendLabel = result.lowConfidence
-        ? (language === "ur" ? `شاید: ${result.label}` : `Maybe: ${result.label}`)
-        : result.label;
-      const res = await fetch(`/api/chat/conversations/${activeConv.id}/detect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ label: sendLabel, kind: result.kind, confidence: result.confidence }),
-      });
-      if (!res.ok) throw new Error("detect endpoint failed");
-      speak(sendLabel); // read the detected sign/currency/object/text name aloud, not just show it
-      setDetectStatus(language === "ur" ? "بھیج دیا گیا ✓" : "Sent ✓");
-      setTimeout(closeDetectModal, 700);
-    } catch {
-      setDetectStatus(language === "ur" ? "بھیجنے میں مسئلہ ہوا" : "Something went wrong sending it");
-    } finally {
-      setDetectBusy(false);
-    }
   }
 
   async function openRecorder(kind) {
@@ -435,7 +391,7 @@ export default function Chat() {
                   />
                   <button onClick={() => openRecorder("voice")} title={language === "ur" ? "آواز ریکارڈ کریں" : "Record voice note"} className="w-9 h-9 rounded-full bg-teal-light">🎙️</button>
                   <button onClick={() => openRecorder("video")} title={language === "ur" ? "ویڈیو ریکارڈ کریں" : "Record video clip"} className="w-9 h-9 rounded-full bg-teal-light">🎥</button>
-                  <button onClick={openDetectModal} title={language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"} className="w-9 h-9 rounded-full bg-marigold">🔍</button>
+                  <button onClick={() => setDetectOpen(true)} title={language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"} className="w-9 h-9 rounded-full bg-marigold">🔍</button>
                 </>
               )}
               {isAssistant && (
@@ -464,41 +420,14 @@ export default function Chat() {
       </div>
       )}
 
-      {detectOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-card p-4 max-w-md w-full">
-            <h2 className="font-display text-lg font-semibold mb-2">
-              {language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"}
-            </h2>
-            <p className="text-xs text-ink/50 mb-3">
-              {language === "ur"
-                ? "اشارہ، کرنسی نوٹ، یا تحریر کیمرے کے سامنے رکھیں۔"
-                : "Show a sign, currency note, printed text, or object to the camera."}
-            </p>
-            <div className="relative bg-black rounded-card overflow-hidden aspect-video mb-3">
-              <video ref={detectCam.videoRef} className="w-full h-full object-cover" playsInline muted />
-              {!detectCam.active && (
-                <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm text-center px-4">
-                  {detectCam.error || (language === "ur" ? "کیمرہ شروع ہو رہا ہے…" : "Starting camera…")}
-                </div>
-              )}
-            </div>
-            {detectStatus && <p className="text-sm text-center mb-3">{detectStatus}</p>}
-            <div className="flex gap-2">
-              <button onClick={closeDetectModal} className="flex-1 border hairline rounded-card py-2.5">
-                {language === "ur" ? "منسوخ" : "Cancel"}
-              </button>
-              <button
-                disabled={!detectCam.active || detectBusy}
-                onClick={runDetectAndSend}
-                className="flex-1 bg-marigold text-ink rounded-card py-2.5 font-medium disabled:opacity-40"
-              >
-                {detectBusy ? (language === "ur" ? "پہچان رہے ہیں…" : "Detecting…") : (language === "ur" ? "پہچانیں" : "Detect")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ChatDetectModal
+        isOpen={detectOpen}
+        onClose={() => setDetectOpen(false)}
+        conversationId={activeConv?.id}
+        token={token}
+        language={language}
+        speak={speak}
+      />
     </div>
   );
 }

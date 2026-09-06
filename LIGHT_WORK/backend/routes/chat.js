@@ -22,6 +22,15 @@ function conversationIdFor(a, b) {
   return [a, b].sort().join("_");
 }
 
+function getConversationIfParticipant(convId, userId) {
+  const conversation = db.prepare("SELECT * FROM conversations WHERE id = ?").get(convId);
+  if (!conversation) return { conversation: null, error: "not_found" };
+  if (conversation.user_a !== userId && conversation.user_b !== userId) {
+    return { conversation: null, error: "forbidden" };
+  }
+  return { conversation, error: null };
+}
+
 router.get("/conversations", authMiddleware, (req, res) => {
   const rows = db
     .prepare(`SELECT * FROM conversations WHERE user_a = ? OR user_b = ?`)
@@ -50,11 +59,9 @@ router.post("/conversations/start", authMiddleware, (req, res) => {
 });
 
 router.get("/conversations/:id/messages", authMiddleware, (req, res) => {
-  const conversation = db.prepare("SELECT * FROM conversations WHERE id = ?").get(req.params.id);
-  if (!conversation) return res.status(404).json({ error: "Conversation not found" });
-  if (conversation.user_a !== req.userId && conversation.user_b !== req.userId) {
-    return res.status(403).json({ error: "Not a participant in this conversation" });
-  }
+  const { error } = getConversationIfParticipant(req.params.id, req.userId);
+  if (error === "not_found") return res.status(404).json({ error: "Conversation not found" });
+  if (error === "forbidden") return res.status(403).json({ error: "Not a participant in this conversation" });
 
   const rows = db
     .prepare(`SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC`)
@@ -79,11 +86,9 @@ router.post("/conversations/:id/detect", authMiddleware, (req, res) => {
   if (!label || typeof label !== "string") return res.status(400).json({ error: "label is required" });
   if (!DETECTION_KINDS.has(kind)) return res.status(400).json({ error: "kind must be one of sign|currency|text|object" });
 
-  const conversation = db.prepare("SELECT * FROM conversations WHERE id = ?").get(req.params.id);
-  if (!conversation) return res.status(404).json({ error: "Conversation not found" });
-  if (conversation.user_a !== req.userId && conversation.user_b !== req.userId) {
-    return res.status(403).json({ error: "Not a participant in this conversation" });
-  }
+  const { error } = getConversationIfParticipant(req.params.id, req.userId);
+  if (error === "not_found") return res.status(404).json({ error: "Conversation not found" });
+  if (error === "forbidden") return res.status(403).json({ error: "Not a participant in this conversation" });
 
   const id = nanoid();
   db.prepare(

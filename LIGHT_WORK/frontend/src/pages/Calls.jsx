@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { getSocket } from "../lib/socket";
 import { describeMediaError } from "../lib/mediaErrors";
+import { searchUsers } from "../lib/api";
 
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
@@ -69,8 +70,8 @@ export default function Calls() {
   async function search(q) {
     setQuery(q);
     if (!q.trim()) return setResults([]);
-    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${token}` } });
-    setResults((await res.json()).users || []);
+    const users = await searchUsers(q, token);
+    setResults(users);
   }
 
   async function setupPeerConnection(type) {
