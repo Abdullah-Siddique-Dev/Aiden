@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { useAuth } from "../context/AuthContext";
 import SignPictureBox from "../components/SignPictureBox";
 
 export default function Learning() {
   const { t, language, speak } = useApp();
-  const { token } = useAuth();
   const [curriculum, setCurriculum] = useState([]);
   const [signs, setSigns] = useState([]);
   const [level, setLevel] = useState(1);

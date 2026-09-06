@@ -12,7 +12,7 @@ import { useCamera } from "../lib/useCamera";
 const SCAN_INTERVAL_MS = 2500;
 
 export default function TextReader() {
-  const { t, language, speak } = useApp();
+  const { language, speak } = useApp();
   const { videoRef, active, error, start, stop } = useCamera(language);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -9,7 +9,7 @@ const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
 export default function Calls() {
   const { t, language } = useApp();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const socketRef = useRef(null);
   const pcRef = useRef(null);
   const localVideoRef = useRef(null);
