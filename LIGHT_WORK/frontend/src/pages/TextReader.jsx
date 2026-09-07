@@ -14,13 +14,14 @@ import {
   Copy,
   Check,
   AlertCircle,
+  RotateCw,
 } from "lucide-react";
 
 const SCAN_INTERVAL_MS = 2600;
 
 export default function TextReader() {
   const { language, speak } = useApp();
-  const { videoRef, active, error, start, stop } = useCamera(language);
+  const { videoRef, active, error, facingMode, start, stop, flipCamera } = useCamera(language);
 
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,13 +82,13 @@ export default function TextReader() {
   }
 
   async function scanOnce() {
-    if (!videoRef.current || busy) return;
+    if (!videoRef.current || videoRef.current.readyState < 2 || busy) return;
     setBusy(true);
     setStatus(isUrdu ? "کیمرے میں تحریر پڑھی جا رہی ہے…" : "Scanning printed text in camera viewport…");
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
       canvas.getContext("2d").drawImage(videoRef.current, 0, 0);
       const langs = isUrdu ? "urd+eng" : "eng+urd";
       const { data } = await Tesseract.recognize(canvas, langs);
@@ -216,9 +217,38 @@ export default function TextReader() {
           </div>
         )}
 
+        {/* Top-Right Viewport Controls (Flip Camera) */}
+        {active && (
+          <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={flipCamera}
+              title={isUrdu ? "کیمرہ تبدیل کریں" : "Flip camera"}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 shadow-sm transition-all active:scale-95"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-[11px]">
+                {facingMode === "user" ? (isUrdu ? "سامنے والا" : "Front") : (isUrdu ? "پچھلا" : "Rear")}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Text Alignment Frame Overlay */}
+        {active && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+            <div className="w-4/5 max-w-md h-40 sm:h-48 rounded-xl border-2 border-dashed border-white/60 bg-black/10 flex flex-col items-center justify-center text-center p-3">
+              <FileText className="w-7 h-7 text-white/80 mb-1" />
+              <span className="text-[11px] font-bold text-white drop-shadow">
+                {isUrdu ? "تحریر یا کتاب کو فریم کے اندر رکھیں" : "Hold Text or Book Flat in Frame"}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Active Scanning Badge */}
         {busy && (
-          <div className="absolute top-3.5 right-3.5 z-20 bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse shadow-sm">
+          <div className="absolute top-3.5 left-3.5 z-20 bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse shadow-sm">
             <span className="w-2 h-2 rounded-full bg-aiden-accent" />
             <span>{isUrdu ? "تحریر پڑھی جا رہی ہے…" : "Extracting OCR text…"}</span>
           </div>

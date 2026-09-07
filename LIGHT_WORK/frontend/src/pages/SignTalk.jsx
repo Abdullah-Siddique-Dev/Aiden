@@ -15,6 +15,7 @@ import {
   History,
   Play,
   Square,
+  RotateCw,
 } from "lucide-react";
 
 const SIGN_NAMES = {
@@ -44,10 +45,11 @@ const FLOW_STEPS = ["listening", "analyzing", "recognized", "speaking"];
 
 export default function SignTalk() {
   const { t, language, speak } = useApp();
-  const { videoRef, active, error, start, stop } = useCamera(language);
+  const { videoRef, active, error, facingMode, start, stop, flipCamera } = useCamera(language);
   const canvasRef = useRef(null);
   const landmarkerRef = useRef(null);
   const loopRef = useRef(null);
+  const loopRunningRef = useRef(false);
   const holdRef = useRef({ signId: null, since: 0 });
   const lastAnnouncedRef = useRef({ signId: null, at: 0 });
   const speakTimeoutRef = useRef(null);
@@ -82,9 +84,21 @@ export default function SignTalk() {
         // MediaPipe load fallback
       }
     })();
+  }, []);
 
-    return () => {
+  function stopLoop() {
+    loopRunningRef.current = false;
+    if (loopRef.current) {
       cancelAnimationFrame(loopRef.current);
+      loopRef.current = null;
+    }
+    const canvas = canvasRef.current;
+    if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  useEffect(() => {
+    return () => {
+      stopLoop();
       clearTimeout(speakTimeoutRef.current);
       stop();
     };
@@ -116,40 +130,50 @@ export default function SignTalk() {
   }
 
   function loop() {
+    if (!loopRunningRef.current) return;
     const video = videoRef.current;
     const landmarker = landmarkerRef.current;
     if (!video || !landmarker || video.readyState < 2) {
-      loopRef.current = requestAnimationFrame(loop);
+      if (loopRunningRef.current) {
+        loopRef.current = requestAnimationFrame(loop);
+      }
       return;
     }
 
-    const result = landmarker.detectForVideo(video, performance.now());
-    const hands = result.landmarks || [];
-    const hand = hands[0];
-    drawLandmarks(hand);
+    try {
+      const result = landmarker.detectForVideo(video, performance.now());
+      if (!loopRunningRef.current) return;
+      const hands = result.landmarks || [];
+      const hand = hands[0];
+      drawLandmarks(hand);
 
-    if (hand) {
-      setHandInView(true);
-      if (flowState === "listening") setFlowState("analyzing");
+      if (hand) {
+        setHandInView(true);
+        if (flowState === "listening") setFlowState("analyzing");
 
-      pushFrameAndClassify(hands)
-        .then((trained) => {
-          if (!trained || !SIGN_NAMES[trained.signId]) return;
-          announce(trained.signId, trained.confidence);
-        })
-        .catch(() => {});
+        pushFrameAndClassify(hands)
+          .then((trained) => {
+            if (!trained || !SIGN_NAMES[trained.signId]) return;
+            announce(trained.signId, trained.confidence);
+          })
+          .catch(() => {});
 
-      const { signId, confidence: conf } = classifySign(hand);
-      setConfidence(conf);
-      announce(signId, conf);
-    } else {
-      setHandInView(false);
-      setConfidence(0);
-      resetSignBuffer();
-      if (flowState !== "speaking") setFlowState("listening");
+        const { signId, confidence: conf } = classifySign(hand);
+        setConfidence(conf);
+        announce(signId, conf);
+      } else {
+        setHandInView(false);
+        setConfidence(0);
+        resetSignBuffer();
+        if (flowState !== "speaking") setFlowState("listening");
+      }
+    } catch (err) {
+      console.warn("Hand detection frame error:", err);
     }
 
-    loopRef.current = requestAnimationFrame(loop);
+    if (loopRunningRef.current) {
+      loopRef.current = requestAnimationFrame(loop);
+    }
   }
 
   function announce(signId, conf) {
@@ -189,8 +213,13 @@ export default function SignTalk() {
   }
 
   useEffect(() => {
-    if (active && ready) loop();
-    return () => cancelAnimationFrame(loopRef.current);
+    if (active && ready) {
+      loopRunningRef.current = true;
+      loop();
+    } else {
+      stopLoop();
+    }
+    return () => stopLoop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, ready]);
 
@@ -301,6 +330,35 @@ export default function SignTalk() {
               </div>
             )}
 
+            {/* Top-Right Viewport Controls (Flip Camera) */}
+            {active && (
+              <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={flipCamera}
+                  title={isUrdu ? "کیمرہ تبدیل کریں" : "Flip camera"}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 shadow-sm transition-all active:scale-95"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-[11px]">
+                    {facingMode === "user" ? (isUrdu ? "سامنے والا" : "Front") : (isUrdu ? "پچھلا" : "Rear")}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* Hand Alignment Guide when searching */}
+            {active && !handInView && (
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+                <div className="w-44 h-52 rounded-2xl border-2 border-dashed border-aiden-accent/60 bg-aiden-accent/5 flex flex-col items-center justify-center text-center p-3 animate-pulse">
+                  <Hand className="w-9 h-9 text-aiden-accent/70 mb-1.5" />
+                  <span className="text-[11px] font-bold text-white drop-shadow">
+                    {isUrdu ? "ہاتھ فریم کے اندر رکھیں" : "Align Hand in Frame"}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Speaking audio visualizer badge */}
             {flowState === "speaking" && (
               <div className="absolute bottom-3.5 left-3.5 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-aiden-accent text-aiden-text-primary backdrop-blur-md shadow-sm">
@@ -320,11 +378,11 @@ export default function SignTalk() {
             {!active ? (
               <Button
                 disabled={!ready}
-                onClick={() => {
+                onClick={async () => {
                   if ("speechSynthesis" in window) {
                     window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
                   }
-                  start("environment");
+                  await start(facingMode);
                 }}
                 variant="primary"
                 size="md"

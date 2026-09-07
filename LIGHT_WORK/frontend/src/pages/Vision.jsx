@@ -29,13 +29,17 @@ import {
   X,
   Check,
   Sparkles,
+  RotateCw,
+  Copy,
+  Zap,
+  RefreshCw,
 } from "lucide-react";
 
 const MODES = ["narrate", "objects", "ocr", "currency"];
 
 export default function Vision() {
   const { t, language, speak } = useApp();
-  const { videoRef, active, error, start, stop } = useCamera(language);
+  const { videoRef, active, error, facingMode, start, stop, flipCamera } = useCamera(language);
   const canvasRef = useRef(null);
 
   const [mode, setMode] = useState("narrate");
@@ -43,6 +47,10 @@ export default function Vision() {
   const [detections, setDetections] = useState([]);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [currencyLabel, setCurrencyLabel] = useState(null);
+  const [currencyConfidence, setCurrencyConfidence] = useState(null);
+  const [identifyingCurrency, setIdentifyingCurrency] = useState(false);
+  const [ocrText, setOcrText] = useState("");
+  const [copiedOcr, setCopiedOcr] = useState(false);
   const [exampleCounts, setExampleCounts] = useState({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState(null);
@@ -63,6 +71,8 @@ export default function Vision() {
 
   const cocoModelRef = useRef(null);
   const loopRef = useRef(null);
+  const loopTimerRef = useRef(null);
+  const loopRunningRef = useRef(false);
   const lastSpokenRef = useRef({ text: "", at: 0 });
   const speakTimeoutRef = useRef(null);
 
@@ -80,10 +90,19 @@ export default function Vision() {
     }, duration);
   }
 
+  function stopNarrationLoop() {
+    loopRunningRef.current = false;
+    clearTimeout(loopTimerRef.current);
+    if (loopRef.current) {
+      cancelAnimationFrame(loopRef.current);
+      loopRef.current = null;
+    }
+  }
+
   useEffect(() => {
     return () => {
+      stopNarrationLoop();
       stop();
-      cancelAnimationFrame(loopRef.current);
       clearTimeout(speakTimeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,7 +121,7 @@ export default function Vision() {
   function drawBoxes(predictions) {
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    if (!canvas || !video) return;
+    if (!canvas || !video || !video.videoWidth) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
@@ -110,9 +129,13 @@ export default function Vision() {
 
     predictions.forEach((p) => {
       const [x, y, w, h] = p.bbox;
+      // High-visibility glowing bounding frame
       ctx.strokeStyle = "#E8B44F";
       ctx.lineWidth = 3;
+      ctx.shadowColor = "rgba(232, 180, 79, 0.4)";
+      ctx.shadowBlur = 6;
       ctx.strokeRect(x, y, w, h);
+      ctx.shadowBlur = 0;
 
       const customName = rememberedObjects[p.class];
       const translated = translateObjectLabel(p.class, language);
@@ -120,17 +143,19 @@ export default function Vision() {
         ? `[Saved] ${customName} (${Math.round(p.score * 100)}%)`
         : `${translated} ${Math.round(p.score * 100)}%`;
 
-      ctx.font = "14px Inter, sans-serif";
+      ctx.font = "bold 13px Inter, sans-serif";
       const textW = ctx.measureText(labelText).width;
       ctx.fillStyle = "#2F6F5E";
-      ctx.fillRect(x, Math.max(0, y - 24), textW + 12, 24);
+      const badgeY = Math.max(0, y - 24);
+      ctx.fillRect(x, badgeY, textW + 14, 24);
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(labelText, x + 6, Math.max(16, y - 7));
+      ctx.fillText(labelText, x + 7, badgeY + 16);
     });
   }
 
   async function detectOnce() {
     const model = await ensureCoco();
+    if (!videoRef.current || videoRef.current.readyState < 2) return [];
     const preds = await model.detect(videoRef.current);
     setDetections(preds);
     drawBoxes(preds);
@@ -138,49 +163,68 @@ export default function Vision() {
   }
 
   async function runNarrationLoop() {
+    stopNarrationLoop();
+    loopRunningRef.current = true;
     const model = await ensureCoco();
+
     const tick = async () => {
+      if (!loopRunningRef.current) return;
       if (!videoRef.current || videoRef.current.readyState < 2) {
-        loopRef.current = requestAnimationFrame(tick);
+        if (loopRunningRef.current) {
+          loopRef.current = requestAnimationFrame(tick);
+        }
         return;
       }
-      const preds = await model.detect(videoRef.current);
-      drawBoxes(preds);
-      setDetections(preds);
 
-      if (preds.length) {
-        const top = preds.sort((a, b) => b.score - a.score)[0];
-        const centerX = top.bbox[0] + top.bbox[2] / 2;
-        const frameW = videoRef.current.videoWidth || 640;
-        const frameH = videoRef.current.videoHeight || 480;
-        const position =
-          centerX < frameW * 0.33
-            ? isUrdu
-              ? "بائیں طرف"
-              : "on the left"
-            : centerX > frameW * 0.66
-            ? isUrdu
-              ? "دائیں طرف"
-              : "on the right"
-            : isUrdu
-            ? "سامنے"
-            : "ahead";
+      try {
+        const preds = await model.detect(videoRef.current);
+        if (!loopRunningRef.current) return;
+        drawBoxes(preds);
+        setDetections(preds);
 
-        const customName = rememberedObjects[top.class];
-        const catLabel = customName || categoryLabel(top.class, language);
-        const close = isClose(top, frameW, frameH);
-        const closeNote = close ? (isUrdu ? "، بہت قریب" : ", very close") : "";
-        const sentence = isUrdu
-          ? `${position} ${catLabel} ہے${closeNote}`
-          : `There is ${catLabel} ${position}${closeNote}`;
+        if (preds.length) {
+          const top = preds.sort((a, b) => b.score - a.score)[0];
+          const centerX = top.bbox[0] + top.bbox[2] / 2;
+          const frameW = videoRef.current.videoWidth || 640;
+          const frameH = videoRef.current.videoHeight || 480;
+          const position =
+            centerX < frameW * 0.33
+              ? isUrdu
+                ? "بائیں طرف"
+                : "on the left"
+              : centerX > frameW * 0.66
+              ? isUrdu
+                ? "دائیں طرف"
+                : "on the right"
+              : isUrdu
+              ? "سامنے"
+              : "ahead";
 
-        const now = Date.now();
-        if (sentence !== lastSpokenRef.current.text || now - lastSpokenRef.current.at > 6000) {
-          speakWithVisual(sentence);
-          lastSpokenRef.current = { text: sentence, at: now };
+          const customName = rememberedObjects[top.class];
+          const catLabel = customName || categoryLabel(top.class, language);
+          const close = isClose(top, frameW, frameH);
+          const closeNote = close ? (isUrdu ? "، بہت قریب" : ", very close") : "";
+          const sentence = isUrdu
+            ? `${position} ${catLabel} ہے${closeNote}`
+            : `There is ${catLabel} ${position}${closeNote}`;
+
+          const now = Date.now();
+          if (sentence !== lastSpokenRef.current.text || now - lastSpokenRef.current.at > 6000) {
+            speakWithVisual(sentence);
+            lastSpokenRef.current = { text: sentence, at: now };
+          }
         }
+      } catch (err) {
+        console.warn("Detection frame error:", err);
       }
-      loopRef.current = requestAnimationFrame(() => setTimeout(tick, 900));
+
+      if (loopRunningRef.current) {
+        loopTimerRef.current = setTimeout(() => {
+          if (loopRunningRef.current) {
+            loopRef.current = requestAnimationFrame(tick);
+          }
+        }, 900);
+      }
     };
     tick();
   }
@@ -189,13 +233,18 @@ export default function Vision() {
     setOcrBusy(true);
     setStatus(isUrdu ? "تحریر پڑھی جا رہی ہے…" : "Reading text in view…");
     try {
+      if (!videoRef.current || videoRef.current.readyState < 2) {
+        setStatus(isUrdu ? "کیمرہ فیڈ تیار نہیں ہے" : "Camera feed not ready");
+        return;
+      }
       const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
       canvas.getContext("2d").drawImage(videoRef.current, 0, 0);
       const langs = isUrdu ? "urd+eng" : "eng+urd";
       const { data } = await Tesseract.recognize(canvas, langs);
       const text = (data.text || "").trim();
+      setOcrText(text);
       setStatus(text || (isUrdu ? "کوئی تحریر نہیں ملی" : "No text found"));
       if (text) speakWithVisual(text.slice(0, 400));
     } catch {
@@ -206,6 +255,10 @@ export default function Vision() {
   }
 
   async function trainCurrency(denomination) {
+    if (!videoRef.current || videoRef.current.readyState < 2) {
+      setStatus(isUrdu ? "کیمرہ فیڈ تیار نہیں ہے" : "Camera feed not ready");
+      return;
+    }
     await addCurrencyExample(videoRef.current, denomination);
     setExampleCounts(getExampleCounts());
     setStatus(
@@ -216,36 +269,49 @@ export default function Vision() {
   }
 
   async function identifyCurrency() {
+    setIdentifyingCurrency(true);
+    setCurrencyConfidence(null);
+    setStatus(isUrdu ? "نوٹ کی شناخت ہو رہی ہے…" : "Identifying banknote…");
     try {
-      const trained = await predictCurrencyTrained(videoRef.current);
-      if (trained && trained.confidence >= 0.55) {
-        const denom = trained.denomination.replace(/_(front|back)$/, "");
-        setCurrencyLabel(denom);
-        const sentence = isUrdu ? `یہ ${denom} روپے کا نوٹ ہے` : `This is a ${denom} rupee note`;
-        setStatus(sentence);
-        speakWithVisual(sentence);
+      if (!videoRef.current || videoRef.current.readyState < 2) {
+        setStatus(isUrdu ? "کیمرہ فیڈ تیار نہیں ہے" : "Camera feed not ready");
         return;
       }
-    } catch {
-      // Trained model fallback to live KNN
-    }
+      try {
+        const trained = await predictCurrencyTrained(videoRef.current);
+        if (trained && trained.confidence >= 0.55) {
+          const denom = trained.denomination.replace(/_(front|back)$/, "");
+          setCurrencyLabel(denom);
+          setCurrencyConfidence(Math.round(trained.confidence * 100));
+          const sentence = isUrdu ? `یہ ${denom} روپے کا نوٹ ہے` : `This is a ${denom} rupee note`;
+          setStatus(sentence);
+          speakWithVisual(sentence);
+          return;
+        }
+      } catch (err) {
+        console.warn("Trained currency model error, trying KNN:", err);
+      }
 
-    await loadCurrencyModel();
-    const result = await predictCurrency(videoRef.current);
-    if (!result) {
-      setStatus(
-        isUrdu
-          ? "پہلے ہر نوٹ کی ایک مثال محفوظ کریں"
-          : "Not confident — train each note by tapping its amount below while showing it to the camera"
-      );
-      return;
+      await loadCurrencyModel();
+      const result = await predictCurrency(videoRef.current);
+      if (!result) {
+        setStatus(
+          isUrdu
+            ? "پہلے ہر نوٹ کی ایک مثال محفوظ کریں یا نوٹ سیدھا رکھیں"
+            : "Not confident — train each note by tapping its amount below while showing it to the camera"
+        );
+        return;
+      }
+      setCurrencyLabel(result.label);
+      setCurrencyConfidence(result.confidence ? Math.round(result.confidence * 100) : 85);
+      const sentence = isUrdu
+        ? `یہ ${result.label} روپے کا نوٹ ہے`
+        : `This is a ${result.label} rupee note`;
+      setStatus(sentence);
+      speakWithVisual(sentence);
+    } finally {
+      setIdentifyingCurrency(false);
     }
-    setCurrencyLabel(result.label);
-    const sentence = isUrdu
-      ? `یہ ${result.label} روپے کا نوٹ ہے`
-      : `This is a ${result.label} rupee note`;
-    setStatus(sentence);
-    speakWithVisual(sentence);
   }
 
   async function runAnalyze() {
@@ -477,6 +543,46 @@ export default function Vision() {
             <span>{hudState}</span>
           </span>
         </div>
+
+        {/* Top-Right Viewport Controls (Flip Camera) */}
+        {active && (
+          <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={flipCamera}
+              title={isUrdu ? "کیمرہ تبدیل کریں" : "Flip camera"}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 shadow-sm transition-all active:scale-95"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-[11px]">
+                {facingMode === "user" ? (isUrdu ? "سامنے والا" : "Front") : (isUrdu ? "پچھلا" : "Rear")}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Mode-specific alignment guides on the camera feed */}
+        {active && mode === "currency" && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+            <div className="w-3/4 max-w-sm h-36 sm:h-44 rounded-xl border-2 border-dashed border-aiden-accent/70 bg-aiden-accent/5 flex flex-col items-center justify-center text-center p-3">
+              <Banknote className="w-7 h-7 text-aiden-accent/80 mb-1 animate-pulse" />
+              <span className="text-[11px] font-bold text-white drop-shadow">
+                {isUrdu ? "نوٹ کو فریم کے اندر رکھیں" : "Align Banknote in Frame"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {active && mode === "ocr" && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+            <div className="w-4/5 max-w-md h-40 sm:h-48 rounded-xl border-2 border-dashed border-white/60 bg-black/10 flex flex-col items-center justify-center text-center p-3">
+              <FileText className="w-7 h-7 text-white/80 mb-1" />
+              <span className="text-[11px] font-bold text-white drop-shadow">
+                {isUrdu ? "تحریر یا دستاویز کو سیدھا رکھیں" : "Hold Text or Document Flat in Frame"}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Bottom-Right Resolution / HUD Metadata */}
         {active && (
@@ -715,21 +821,64 @@ export default function Vision() {
         {mode === "ocr" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-aiden-text-primary">
-                {isUrdu ? "تحریر پڑھیں (OCR)" : "Read Printed Text (OCR)"}
-              </h3>
+              <div>
+                <h3 className="font-bold text-sm text-aiden-text-primary">
+                  {isUrdu ? "تحریر پڑھیں (OCR)" : "Read Printed Text (OCR)"}
+                </h3>
+                <p className="text-xs text-aiden-text-muted">
+                  {isUrdu ? "دستاویز، سائن بورڈ یا لیبل کو کیمرے کے سامنے رکھیں" : "Point camera at signs, labels, or documents"}
+                </p>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={!active || ocrBusy}
                 loading={ocrBusy}
                 onClick={runOcr}
+                icon={<FileText className="w-3.5 h-3.5" />}
               >
-                {t("vision_ocr")}
+                {ocrBusy ? (isUrdu ? "پڑھ رہا ہے…" : "Reading…") : t("vision_ocr")}
               </Button>
             </div>
 
-            {status && (
+            {ocrText && (
+              <div className="p-3.5 rounded-aiden-md bg-aiden-surface-secondary border border-aiden-border space-y-2.5 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-aiden-text-secondary uppercase tracking-wider">
+                    {isUrdu ? "شناخت شدہ متن" : "Detected Text"}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(ocrText);
+                        setCopiedOcr(true);
+                        setTimeout(() => setCopiedOcr(false), 2000);
+                      }}
+                      icon={copiedOcr ? <Check className="w-3.5 h-3.5 text-aiden-success" /> : <Copy className="w-3.5 h-3.5" />}
+                      className="text-xs h-7 px-2"
+                    >
+                      {copiedOcr ? (isUrdu ? "کاپی ہو گیا" : "Copied") : (isUrdu ? "کاپی کریں" : "Copy")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => speakWithVisual(ocrText.slice(0, 400))}
+                      icon={<Volume2 className="w-3.5 h-3.5 text-aiden-primary" />}
+                      className="text-xs h-7 px-2"
+                    >
+                      {isUrdu ? "دوبارہ سنیں" : "Listen"}
+                    </Button>
+                  </div>
+                </div>
+                <p className={`text-xs sm:text-sm text-aiden-text-primary leading-relaxed whitespace-pre-wrap ${isUrdu ? "font-urdu text-base" : ""}`}>
+                  {ocrText}
+                </p>
+              </div>
+            )}
+
+            {status && !ocrText && (
               <div
                 className={`p-3.5 rounded-aiden-md bg-aiden-surface-secondary border border-aiden-border text-xs sm:text-sm text-aiden-text-primary leading-relaxed ${
                   isUrdu ? "font-urdu text-base" : ""
@@ -742,44 +891,101 @@ export default function Vision() {
         )}
 
         {mode === "currency" && (
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm text-aiden-text-primary">
-              {isUrdu ? "پاکستانی کرنسی کی پہچان" : "PKR Currency Note Identifier"}
-            </h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-aiden-text-primary">
+                  {isUrdu ? "پاکستانی کرنسی کی پہچان" : "PKR Currency Note Identifier"}
+                </h3>
+                <p className="text-xs text-aiden-text-muted">
+                  {isUrdu ? "10، 20، 50، 100، 500، 1000 یا 5000 روپے کے نوٹ" : "ONNX Deep Learning & KNN Few-Shot Classifier"}
+                </p>
+              </div>
+              <Badge variant="primary" size="sm">
+                PKR Models Ready
+              </Badge>
+            </div>
+
             <p className="text-xs text-aiden-text-secondary leading-relaxed">
               {isUrdu
-                ? "نوٹ کو کیمرے کے سامنے رکھیں اور نیچے رقم پر ٹیپ کریں تاکہ ماڈل سیکھ سکے، پھر 'پہچانیں' دبائیں۔"
-                : "Hold a banknote up to the camera. Tap Identify Currency to recognize with onnx neural weights, or teach live few-shot examples:"}
+                ? "نوٹ کو کیمرے کے سامنے سیدھا رکھیں اور 'نوٹ پہچانیں' دبائیں، یا چند مثالیں دے کر ماڈل کو سکھائیں۔"
+                : "Hold a banknote up to the camera and tap Identify Currency, or teach live few-shot examples for instant local accuracy:"}
             </p>
 
-            <div className="flex flex-wrap gap-1.5">
-              {PKR_DENOMINATIONS.map((d) => (
-                <Button
-                  key={d}
-                  variant="secondary"
-                  size="sm"
-                  disabled={!active}
-                  onClick={() => trainCurrency(d)}
-                  className="text-xs font-semibold"
-                >
-                  {d} PKR {exampleCounts[d] ? `(${exampleCounts[d]})` : ""}
-                </Button>
-              ))}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-aiden-text-muted uppercase tracking-wider">
+                {isUrdu ? "مثالیں سکھائیں (Few-Shot Training):" : "Train Live Banknotes (Few-Shot):"}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {PKR_DENOMINATIONS.map((d) => (
+                  <Button
+                    key={d}
+                    variant="secondary"
+                    size="sm"
+                    disabled={!active}
+                    onClick={() => trainCurrency(d)}
+                    className="text-xs font-semibold"
+                  >
+                    Rs. {d} {exampleCounts[d] ? `(${exampleCounts[d]})` : ""}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <Button
               variant="accent"
               size="md"
-              disabled={!active}
+              disabled={!active || identifyingCurrency}
+              loading={identifyingCurrency}
               onClick={identifyCurrency}
-              className="w-full font-bold shadow-sm mt-2"
+              icon={<Banknote className="w-4 h-4" />}
+              className="w-full font-bold shadow-sm"
             >
-              {t("vision_currency")}
+              {identifyingCurrency
+                ? (isUrdu ? "نوٹ پہچانا جا رہا ہے…" : "Scanning Banknote…")
+                : t("vision_currency")}
             </Button>
 
             {currencyLabel && (
-              <div className="p-3.5 rounded-aiden-md bg-aiden-accent-light/60 border border-aiden-accent/40 text-sm font-bold text-aiden-text-primary text-center animate-fade-in">
-                {status}
+              <div className="p-4 rounded-aiden-md bg-gradient-to-r from-aiden-accent/15 via-aiden-primary/10 to-aiden-accent/15 border border-aiden-accent/50 animate-fade-in space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-full bg-aiden-accent flex items-center justify-center text-aiden-text-primary shadow-sm font-bold text-lg select-none">
+                      ₨
+                    </div>
+                    <div>
+                      <div className="text-xs text-aiden-text-secondary font-medium">
+                        {isUrdu ? "شناخت شدہ پاکستانی نوٹ" : "Identified Banknote"}
+                      </div>
+                      <div className="text-lg sm:text-xl font-bold text-aiden-text-primary font-display">
+                        Rs. {currencyLabel} PKR
+                      </div>
+                    </div>
+                  </div>
+                  {currencyConfidence && (
+                    <Badge variant="success" size="sm" className="font-mono">
+                      {currencyConfidence}% Match
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-aiden-border-subtle text-xs">
+                  <span className="text-aiden-text-secondary font-medium">
+                    {isUrdu ? `یہ ${currencyLabel} روپے کا نوٹ ہے` : `Verified ${currencyLabel} Rupee Note`}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const sentence = isUrdu ? `یہ ${currencyLabel} روپے کا نوٹ ہے` : `This is a ${currencyLabel} rupee note`;
+                      speakWithVisual(sentence);
+                    }}
+                    icon={<Volume2 className="w-3.5 h-3.5 text-aiden-primary" />}
+                    className="text-xs h-7 px-2"
+                  >
+                    {isUrdu ? "دوبارہ سنیں" : "Play Audio"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

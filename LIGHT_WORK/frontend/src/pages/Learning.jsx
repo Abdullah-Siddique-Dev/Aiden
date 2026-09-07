@@ -26,10 +26,15 @@ export default function Learning() {
     fetch("/api/signs/curriculum")
       .then((r) => r.json())
       .then((d) => {
-        setCurriculum(d.curriculum || []);
-        setSigns(d.signs || []);
-        const firstLevel1 = d.curriculum?.find((l) => l.level === 1);
-        setLessonId((firstLevel1 || d.curriculum?.[0])?.id);
+        if (d.curriculum && d.curriculum.length) {
+          setCurriculum(d.curriculum);
+          setSigns(d.signs || []);
+          const firstLevel1 = d.curriculum.find((l) => l.level === 1);
+          setLessonId((firstLevel1 || d.curriculum[0])?.id);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch signs curriculum:", err);
       });
   }, []);
 

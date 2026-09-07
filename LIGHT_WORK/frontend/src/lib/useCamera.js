@@ -8,9 +8,10 @@ export function useCamera(language = "en") {
   const streamRef = useRef(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState("");
+  const [facingMode, setFacingMode] = useState("environment");
 
   const start = useCallback(
-    async (facingMode = "environment", options = {}) => {
+    async (mode = facingMode, options = {}) => {
       setError("");
       if (!navigator.mediaDevices?.getUserMedia) {
         setError(
@@ -25,15 +26,30 @@ export function useCamera(language = "en") {
         return false;
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: !!options.audio,
-        });
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: !!options.audio,
+          });
+        } catch {
+          // Fallback if environment facingMode is not supported on single-camera laptop/desktop
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: !!options.audio,
+          });
+        }
+
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+          try {
+            await videoRef.current.play();
+          } catch {
+            // Handled play interruption
+          }
         }
+        setFacingMode(mode);
         setActive(true);
         return true;
       } catch (err) {
@@ -42,21 +58,28 @@ export function useCamera(language = "en") {
         return false;
       }
     },
-    [language]
+    [facingMode, language]
   );
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
     streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setActive(false);
   }, []);
 
-  // THE FIX: previously, navigating away (SignTalk -> another tab) without
-  // pressing "Stop Camera" left the camera/mic stream running in the
-  // background forever — the browser then reported the device as "already
-  // in use" on every other page until a manual page refresh. Now the stream
-  // is always released the moment this component unmounts, no matter how
-  // the user left the page.
+  const flipCamera = useCallback(async () => {
+    const nextMode = facingMode === "environment" ? "user" : "environment";
+    if (active) {
+      stop();
+      await start(nextMode);
+    } else {
+      setFacingMode(nextMode);
+    }
+  }, [facingMode, active, start, stop]);
+
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((tr) => tr.stop());
@@ -64,5 +87,5 @@ export function useCamera(language = "en") {
     };
   }, []);
 
-  return { videoRef, streamRef, active, error, start, stop };
+  return { videoRef, streamRef, active, error, facingMode, start, stop, flipCamera };
 }

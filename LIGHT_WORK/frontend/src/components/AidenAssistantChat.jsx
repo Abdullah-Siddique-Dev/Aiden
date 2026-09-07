@@ -108,7 +108,11 @@ export default function AidenAssistantChat({ token, language, speak, t, onClose 
     recognition.onend = () => setListening(false);
     recognitionRef.current = recognition;
     setListening(true);
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+    }
   }
 
   function stopListening() {
