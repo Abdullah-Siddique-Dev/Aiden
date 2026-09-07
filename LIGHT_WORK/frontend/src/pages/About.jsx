@@ -54,10 +54,10 @@ export default function About() {
               <Badge variant="primary">AIDEN Platform</Badge>
               <Badge variant="accent">v2.0 Accessible</Badge>
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-aiden-ink">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-aiden-text-primary">
               {t("about_title")}
             </h1>
-            <p className="text-sm sm:text-base text-aiden-ink/75 mt-1 font-medium">
+            <p className="text-sm sm:text-base text-aiden-text-secondary mt-1 font-medium">
               {t("tagline")}
             </p>
           </div>
@@ -75,10 +75,10 @@ export default function About() {
                 </div>
                 <Badge variant="default" size="sm">{f.tag}</Badge>
               </div>
-              <h2 className="text-base font-bold text-aiden-ink mb-1">
+              <h2 className="text-base font-bold text-aiden-text-primary mb-1">
                 {language === "ur" ? f.titleUr : f.titleEn}
               </h2>
-              <p className={`text-sm text-aiden-ink/70 leading-relaxed ${language === "ur" ? "font-urdu text-base text-right" : ""}`}>
+              <p className={`text-sm text-aiden-text-secondary leading-relaxed ${language === "ur" ? "font-urdu text-base text-right" : ""}`}>
                 {language === "ur" ? f.ur : f.en}
               </p>
             </div>
@@ -91,10 +91,10 @@ export default function About() {
         <div className="flex items-start gap-3">
           <ShieldCheck className="w-5 h-5 text-aiden-primary shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-aiden-ink/70 mb-0.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-aiden-text-muted mb-0.5">
               {language === "ur" ? "رازداری اور بیٹا نوٹس" : "Local Inference & Privacy Notice"}
             </h3>
-            <p className="text-xs text-aiden-ink/60 leading-relaxed">
+            <p className="text-xs text-aiden-text-secondary leading-relaxed">
               {language === "ur"
                 ? "نوٹ: اشاروں، کرنسی اور بصری پہچان کے ماڈلز آپ کے براؤزر کے اندر براہِ راست چلتے ہیں۔ کیمرہ کا ڈیٹا کسی تیسرے فریق کے سرور پر نہیں بھیجا جاتا۔"
                 : "Note: Sign and currency recognition run on lightweight, in-browser neural models (ONNX Web & MediaPipe). Your camera video frames never leave your device."}

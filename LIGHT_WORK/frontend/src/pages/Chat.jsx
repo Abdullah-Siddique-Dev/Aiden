@@ -605,7 +605,7 @@ export default function Chat() {
                       onChange={(e) => onTyping(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && sendText()}
                       placeholder={t("type_message")}
-                      className={`flex-1 bg-aiden-surface-secondary text-aiden-text-primary text-xs sm:text-sm rounded-aiden-md border border-aiden-border py-2.5 px-3.5 focus:border-aiden-primary focus:ring-2 focus:ring-aiden-primary/20 outline-none transition-all ${
+                      className={`flex-1 bg-aiden-surface-secondary text-aiden-text-primary text-xs sm:text-sm rounded-aiden-lg border border-aiden-border/80 py-2.5 px-3.5 shadow-subtle focus:border-aiden-primary focus:ring-2 focus:ring-aiden-primary/25 outline-none transition-all ${
                         isUrdu ? "font-urdu text-right text-base" : ""
                       }`}
                     />

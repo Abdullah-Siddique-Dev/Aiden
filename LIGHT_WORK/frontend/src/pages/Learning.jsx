@@ -126,18 +126,18 @@ export default function Learning() {
       </div>
 
       {/* Level Selection Bar */}
-      <div className="flex gap-2.5">
+      <div className="flex flex-wrap gap-2.5">
         {[1, 2].map((lv) => (
           <button
             key={lv}
             onClick={() => pickLevel(lv)}
-            className={`px-4 py-2.5 rounded-aiden-md text-xs sm:text-sm font-bold border transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent ${
+            className={`px-4 py-2.5 rounded-aiden-lg text-xs sm:text-sm font-semibold border transition-all duration-150 select-none shadow-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent ${
               level === lv
-                ? "bg-aiden-primary text-white border-aiden-primary shadow-sm"
-                : "bg-aiden-surface text-aiden-text-secondary border-aiden-border hover:bg-aiden-surface-secondary hover:text-aiden-text-primary"
+                ? "bg-gradient-to-r from-aiden-primary to-aiden-primary-hover text-white border-aiden-primary/60 shadow-sm"
+                : "bg-white text-aiden-text-secondary border-aiden-border/80 hover:bg-aiden-surface-secondary hover:text-aiden-text-primary"
             }`}
           >
-            <span>{isUrdu ? `سطح ${lv === 1 ? "۱" : "۲"}` : `Level ${lv}`}</span>
+            <span className="font-bold">{isUrdu ? `سطح ${lv === 1 ? "۱" : "۲"}` : `Level ${lv}`}</span>
             <span className="opacity-80 ml-1.5 font-normal">
               — {lv === 1 ? (isUrdu ? "ہندسے، حروف" : "Digits & Alphabets") : (isUrdu ? "الفاظ اور جملے" : "Essential Words")}
             </span>
@@ -158,10 +158,10 @@ export default function Learning() {
                 setSignIndex(0);
                 setJustMastered(false);
               }}
-              className={`px-3.5 py-1.5 rounded-aiden-md text-xs sm:text-sm font-semibold border transition-all duration-150 select-none flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent ${
+              className={`px-3.5 py-2 rounded-aiden-lg text-xs sm:text-sm font-semibold border transition-all duration-150 select-none flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent ${
                 isSelected
-                  ? "bg-aiden-primary-light text-aiden-primary border-aiden-primary/40 shadow-sm"
-                  : "bg-aiden-surface text-aiden-text-secondary border-aiden-border hover:bg-aiden-surface-secondary"
+                  ? "bg-aiden-primary-light text-aiden-primary border-aiden-primary/40 shadow-sm ring-1 ring-aiden-primary/20"
+                  : "bg-white text-aiden-text-secondary border-aiden-border/80 hover:bg-aiden-surface-secondary hover:text-aiden-text-primary shadow-subtle"
               }`}
             >
               <span>{isUrdu ? l.title_ur : l.title_en}</span>

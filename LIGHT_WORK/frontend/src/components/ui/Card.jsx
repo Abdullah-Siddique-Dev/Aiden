@@ -2,17 +2,17 @@ import { forwardRef } from "react";
 
 const VARIANTS = {
   standard:
-    "bg-aiden-surface border border-aiden-border rounded-aiden-lg shadow-subtle transition-all duration-200",
+    "bg-aiden-surface border border-aiden-border/80 rounded-aiden-xl shadow-card transition-all duration-200",
   interactive:
-    "bg-aiden-surface border border-aiden-border rounded-aiden-lg shadow-subtle hover:shadow-card-hover hover:border-aiden-primary/50 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent",
+    "bg-aiden-surface border border-aiden-border/80 rounded-aiden-xl shadow-card hover:shadow-card-hover hover:border-aiden-primary/60 hover:-translate-y-1 transition-all duration-200 cursor-pointer active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aiden-accent",
   subtle:
-    "bg-aiden-surface-secondary border border-aiden-border-subtle rounded-aiden-lg transition-colors",
+    "bg-aiden-surface-secondary/80 border border-aiden-border-subtle rounded-aiden-xl transition-colors",
   accent:
-    "bg-aiden-accent-light/40 border border-aiden-accent/30 rounded-aiden-lg shadow-subtle",
+    "bg-gradient-to-br from-aiden-accent-light/60 to-aiden-accent-light/20 border border-aiden-accent/40 rounded-aiden-xl shadow-card",
   camera:
-    "bg-black rounded-aiden-lg overflow-hidden border border-aiden-border relative shadow-card",
+    "bg-black rounded-aiden-xl overflow-hidden border border-aiden-border/80 relative shadow-card",
   ai:
-    "bg-gradient-to-br from-aiden-surface to-aiden-primary-subtle border border-aiden-primary/25 rounded-aiden-lg shadow-subtle hover:border-aiden-accent/40 transition-all duration-200",
+    "bg-gradient-to-br from-white via-aiden-primary-subtle/50 to-aiden-accent-subtle/30 border border-aiden-primary/30 rounded-aiden-xl shadow-card hover:border-aiden-accent/60 transition-all duration-200",
 };
 
 const PADDINGS = {

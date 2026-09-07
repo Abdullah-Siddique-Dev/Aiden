@@ -16,14 +16,18 @@ const EXPRESSION_IMAGES = {
 export default function Avatar({ expression = "idle", size = 180, className = "" }) {
   const src = EXPRESSION_IMAGES[expression] || EXPRESSION_IMAGES.idle;
   return (
-    <img
-      src={src}
-      alt="AIDEN"
-      width={size}
-      height={size}
-      className={`select-none object-contain ${className}`}
+    <div
+      className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-white shadow-sm ring-2 ring-aiden-border/60 shrink-0 select-none ${className}`}
       style={{ width: size, height: size }}
-      draggable={false}
-    />
+    >
+      <img
+        src={src}
+        alt="AIDEN Avatar"
+        width={size}
+        height={size}
+        className="w-full h-full object-cover select-none"
+        draggable={false}
+      />
+    </div>
   );
 }

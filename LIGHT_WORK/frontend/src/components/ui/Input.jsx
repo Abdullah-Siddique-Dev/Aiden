@@ -49,7 +49,7 @@ export const Input = forwardRef(function Input(
           required={required}
           aria-invalid={!!error}
           aria-describedby={error ? errorId : helperText ? helperId : undefined}
-          className={`w-full bg-aiden-surface text-aiden-text-primary text-sm rounded-aiden-md border transition-all duration-150 py-2.5 px-3.5 ${
+          className={`w-full bg-aiden-surface text-aiden-text-primary text-sm rounded-aiden-lg border transition-all duration-150 py-2.5 px-3.5 shadow-subtle ${
             icon ? "pl-10" : ""
           } ${
             error

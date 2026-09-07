@@ -211,3 +211,47 @@ body {
   animation: aiden-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Glassmorphism & Ambient Layout */
+.aiden-ambient-bg {
+  background-color: var(--aiden-bg);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(47, 111, 94, 0.045) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(232, 180, 79, 0.04) 0px, transparent 45%),
+    radial-gradient(at 50% 100%, rgba(47, 111, 94, 0.03) 0px, transparent 60%);
+}
+
+.high-contrast .aiden-ambient-bg {
+  background-image: none !important;
+}
+
+/* Subtle sleek scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(23, 34, 30, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(23, 34, 30, 0.25);
+}
+.high-contrast ::-webkit-scrollbar-thumb {
+  background: #FFD43B;
+}
+
+/* Glass panel */
+.aiden-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(217, 225, 221, 0.8);
+}
+.high-contrast .aiden-glass {
+  background: #0E1412 !important;
+  border-color: #FFFFFF !important;
+}
+

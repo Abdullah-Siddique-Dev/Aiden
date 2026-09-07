@@ -31,10 +31,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-aiden-bg px-4 py-8">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center aiden-ambient-bg px-4 py-10 relative overflow-hidden">
+      <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center mb-6 text-center">
-          <Avatar size={105} expression="encouraging" className="drop-shadow-sm mb-2" />
+          <div className="relative mb-2">
+            <div className="absolute -inset-3 bg-gradient-to-tr from-aiden-primary/25 via-aiden-accent/30 to-transparent rounded-full blur-xl -z-10" />
+            <Avatar size={105} expression="encouraging" className="drop-shadow-md" />
+          </div>
           <h1 className="font-display text-3xl font-bold text-aiden-primary tracking-tight">
             {t("app_name")}
           </h1>
@@ -43,7 +46,7 @@ export default function Login() {
           </p>
         </div>
 
-        <Card variant="standard" padding="lg" className="shadow-card border-aiden-border">
+        <Card variant="standard" padding="lg" className="shadow-modal border-aiden-border/80">
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <h2 className={`text-xl font-display font-bold text-aiden-text-primary ${isUrdu ? "font-urdu text-2xl" : ""}`}>

@@ -2,21 +2,21 @@ import { forwardRef } from "react";
 
 const VARIANTS = {
   primary:
-    "bg-aiden-primary text-white hover:bg-aiden-primary-hover hover:shadow-sm active:scale-[0.97] shadow-sm border border-transparent",
+    "bg-gradient-to-r from-aiden-primary to-aiden-primary-hover text-white shadow-[0_2px_8px_rgba(47,111,94,0.25)] hover:shadow-[0_4px_14px_rgba(47,111,94,0.35)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] border border-aiden-primary/30 font-semibold",
   secondary:
-    "bg-aiden-primary-light text-aiden-primary hover:bg-aiden-primary-subtle hover:border-aiden-primary/40 active:scale-[0.97] border border-aiden-primary/20",
+    "bg-white text-aiden-primary hover:bg-aiden-primary-light/60 hover:border-aiden-primary/50 active:scale-[0.98] border border-aiden-border shadow-subtle font-medium",
   accent:
-    "bg-aiden-accent text-aiden-text-primary hover:bg-aiden-accent-hover hover:shadow-sm active:scale-[0.97] shadow-sm border border-transparent font-semibold",
+    "bg-gradient-to-r from-aiden-accent to-aiden-accent-hover text-aiden-text-primary shadow-[0_2px_8px_rgba(232,180,79,0.3)] hover:shadow-[0_4px_14px_rgba(232,180,79,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] border border-aiden-accent-hover/30 font-bold",
   outline:
-    "bg-transparent text-aiden-primary border border-aiden-primary hover:bg-aiden-primary-light active:scale-[0.97]",
+    "bg-transparent text-aiden-primary border border-aiden-primary/60 hover:bg-aiden-primary-light hover:border-aiden-primary active:scale-[0.98] font-medium",
   ghost:
-    "bg-transparent text-aiden-text-secondary hover:text-aiden-text-primary hover:bg-aiden-surface-secondary active:scale-[0.97] border border-transparent",
+    "bg-transparent text-aiden-text-secondary hover:text-aiden-text-primary hover:bg-aiden-surface-secondary active:scale-[0.98] border border-transparent font-medium",
   danger:
-    "bg-aiden-danger text-white hover:bg-aiden-danger-hover hover:shadow-sm active:scale-[0.97] shadow-sm border border-transparent",
+    "bg-gradient-to-r from-aiden-danger to-aiden-danger-hover text-white shadow-[0_2px_8px_rgba(194,59,107,0.25)] hover:shadow-[0_4px_14px_rgba(194,59,107,0.35)] hover:-translate-y-0.5 active:scale-[0.98] border border-transparent font-semibold",
   success:
-    "bg-aiden-success text-white hover:bg-aiden-success/90 hover:shadow-sm active:scale-[0.97] shadow-sm border border-transparent font-semibold",
+    "bg-gradient-to-r from-aiden-success to-aiden-success/90 text-white shadow-[0_2px_8px_rgba(46,125,91,0.25)] hover:shadow-[0_4px_14px_rgba(46,125,91,0.35)] hover:-translate-y-0.5 active:scale-[0.98] border border-transparent font-semibold",
   ai:
-    "bg-gradient-to-r from-aiden-primary to-aiden-primary-hover text-white shadow-sm border border-aiden-accent/30 hover:shadow-card hover:scale-[1.015] active:scale-[0.97]",
+    "bg-gradient-to-r from-aiden-primary via-[#245849] to-aiden-primary text-white shadow-[0_4px_14px_rgba(47,111,94,0.3)] hover:shadow-[0_6px_20px_rgba(47,111,94,0.45)] hover:-translate-y-0.5 active:scale-[0.98] border border-aiden-accent/40 font-bold",
 };
 
 const SIZES = {
