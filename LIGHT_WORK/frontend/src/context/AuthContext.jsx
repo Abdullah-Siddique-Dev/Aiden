@@ -28,14 +28,26 @@ export function AuthProvider({ children }) {
     else setLoading(false);
   }, [token, fetchMe]);
 
+  async function parseResponse(res, fallbackMessage) {
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(
+        `Server communication error (HTTP ${res.status}). Verify you are on AIDEN's port (e.g. 5174).`
+      );
+    }
+    if (!res.ok) throw new Error(data.error || fallbackMessage);
+    return data;
+  }
+
   async function login(email, password) {
     const res = await fetch(`${API}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
+    const data = await parseResponse(res, "Login failed");
     localStorage.setItem("aiden_token", data.token);
     setToken(data.token);
     setUser(data.user);
@@ -48,8 +60,7 @@ export function AuthProvider({ children }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Sign up failed");
+    const data = await parseResponse(res, "Sign up failed");
     localStorage.setItem("aiden_token", data.token);
     setToken(data.token);
     setUser(data.user);
@@ -68,8 +79,7 @@ export function AuthProvider({ children }) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(patch),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Update failed");
+    const data = await parseResponse(res, "Update failed");
     setUser(data.user);
     return data.user;
   }

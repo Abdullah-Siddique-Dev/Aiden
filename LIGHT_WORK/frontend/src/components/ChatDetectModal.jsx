@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useCamera } from "../lib/useCamera";
 import { autoDetect } from "../lib/detectFromCamera";
+import { Modal, Button, Card } from "./ui";
+import { Camera, Check } from "lucide-react";
 
 export default function ChatDetectModal({
   isOpen,
@@ -11,16 +13,20 @@ export default function ChatDetectModal({
   speak,
 }) {
   const [detectStatus, setDetectStatus] = useState("");
+  const [detectSuccess, setDetectSuccess] = useState(false);
   const [detectBusy, setDetectBusy] = useState(false);
   const detectCam = useCamera(language);
+  const isUrdu = language === "ur";
 
   useEffect(() => {
     if (isOpen) {
       setDetectStatus("");
+      setDetectSuccess(false);
       detectCam.start("environment");
     } else {
       detectCam.stop();
       setDetectStatus("");
+      setDetectSuccess(false);
     }
     return () => {
       detectCam.stop();
@@ -31,25 +37,26 @@ export default function ChatDetectModal({
   function closeDetectModal() {
     detectCam.stop();
     setDetectStatus("");
+    setDetectSuccess(false);
     onClose?.();
   }
 
   async function runDetectAndSend() {
     if (!detectCam.active || !conversationId) return;
     setDetectBusy(true);
-    setDetectStatus(language === "ur" ? "پہچانا جا رہا ہے…" : "Detecting…");
+    setDetectStatus(isUrdu ? "پہچانا جا رہا ہے…" : "Detecting surroundings…");
     try {
       const result = await autoDetect(detectCam.videoRef.current, language);
       if (!result) {
         setDetectStatus(
-          language === "ur"
+          isUrdu
             ? "کچھ واضح نہیں ملا، دوبارہ کوشش کریں۔"
-            : "Nothing confident detected — try again."
+            : "Nothing confident detected — please try again."
         );
         return;
       }
       const sendLabel = result.lowConfidence
-        ? language === "ur"
+        ? isUrdu
           ? `شاید: ${result.label}`
           : `Maybe: ${result.label}`
         : result.label;
@@ -59,53 +66,81 @@ export default function ChatDetectModal({
         body: JSON.stringify({ label: sendLabel, kind: result.kind, confidence: result.confidence }),
       });
       if (!res.ok) throw new Error("detect endpoint failed");
-      speak(sendLabel); // read the detected sign/currency/object/text name aloud, not just show it
-      setDetectStatus(language === "ur" ? "بھیج دیا گیا ✓" : "Sent ✓");
-      setTimeout(closeDetectModal, 700);
+      speak(sendLabel);
+      setDetectSuccess(true);
+      setDetectStatus(isUrdu ? "کامیابی سے بھیج دیا گیا" : "Detected & Sent");
+      setTimeout(closeDetectModal, 750);
     } catch {
       setDetectStatus(
-        language === "ur" ? "بھیجنے میں مسئلہ ہوا" : "Something went wrong sending it"
+        isUrdu ? "بھیجنے میں مسئلہ ہوا" : "Something went wrong sending it"
       );
     } finally {
       setDetectBusy(false);
     }
   }
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card p-4 max-w-md w-full">
-        <h2 className="font-display text-lg font-semibold mb-2">
-          {language === "ur" ? "پہچانیں اور بھیجیں" : "Detect & Send"}
-        </h2>
-        <p className="text-xs text-ink/50 mb-3">
-          {language === "ur"
-            ? "اشارہ، کرنسی نوٹ، یا تحریر کیمرے کے سامنے رکھیں۔"
-            : "Show a sign, currency note, printed text, or object to the camera."}
-        </p>
-        <div className="relative bg-black rounded-card overflow-hidden aspect-video mb-3">
-          <video ref={detectCam.videoRef} className="w-full h-full object-cover" playsInline muted />
-          {!detectCam.active && (
-            <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm text-center px-4">
-              {detectCam.error || (language === "ur" ? "کیمرہ شروع ہو رہا ہے…" : "Starting camera…")}
-            </div>
-          )}
-        </div>
-        {detectStatus && <p className="text-sm text-center mb-3">{detectStatus}</p>}
-        <div className="flex gap-2">
-          <button onClick={closeDetectModal} className="flex-1 border hairline rounded-card py-2.5">
-            {language === "ur" ? "منسوخ" : "Cancel"}
-          </button>
-          <button
+    <Modal
+      isOpen={isOpen}
+      onClose={closeDetectModal}
+      title={isUrdu ? "پہچانیں اور بھیجیں" : "Detect & Send"}
+      description={
+        isUrdu
+          ? "کوئی اشارہ، نوٹ، کتاب، یا چیز کیمرے کو دکھائیں تاکہ خود بخود پہنچ جائے"
+          : "Point your camera at a sign, currency note, text, or object to detect and send."
+      }
+      maxWidth="md"
+      footer={
+        <div className="flex gap-2.5 w-full">
+          <Button
+            variant="ghost"
+            size="md"
+            onClick={closeDetectModal}
+            className="flex-1"
+          >
+            {isUrdu ? "منسوخ" : "Cancel"}
+          </Button>
+          <Button
+            variant="accent"
+            size="md"
+            loading={detectBusy}
             disabled={!detectCam.active || detectBusy}
             onClick={runDetectAndSend}
-            className="flex-1 bg-marigold text-ink rounded-card py-2.5 font-medium disabled:opacity-40"
+            className="flex-1 font-semibold shadow-sm"
           >
-            {detectBusy ? (language === "ur" ? "پہچان رہے ہیں…" : "Detecting…") : (language === "ur" ? "پہچانیں" : "Detect")}
-          </button>
+            {detectBusy ? (isUrdu ? "پہچان رہے ہیں…" : "Detecting…") : (isUrdu ? "پہچانیں" : "Detect Now")}
+          </Button>
         </div>
+      }
+    >
+      <div className="space-y-3">
+        <Card variant="camera" padding="none" className="aspect-video relative">
+          <video
+            ref={detectCam.videoRef}
+            className="w-full h-full object-cover"
+            playsInline
+            muted
+          />
+          {!detectCam.active && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/75 text-sm p-4 text-center bg-black/80">
+              <Camera className="w-8 h-8 text-white/50 mb-2" aria-hidden="true" />
+              <p>{detectCam.error || (isUrdu ? "کیمرہ شروع ہو رہا ہے…" : "Starting camera preview…")}</p>
+            </div>
+          )}
+        </Card>
+
+        {detectStatus && (
+          <div className={`p-2.5 rounded-aiden-md text-xs sm:text-sm text-center font-medium flex items-center justify-center gap-1.5 ${
+            detectSuccess
+              ? "bg-aiden-success-light text-aiden-success border border-aiden-success/20"
+              : "bg-aiden-primary-light text-aiden-primary border border-aiden-primary/20"
+          }`}>
+            {detectSuccess && <Check className="w-4 h-4 text-aiden-success" />}
+            <span>{detectStatus}</span>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
+
